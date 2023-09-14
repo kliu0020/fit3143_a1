@@ -1,111 +1,139 @@
-#include <bits/stdc++.h>
-#define ll long long
-using namespace std;
+#include <stdio.h>
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <time.h>
+#include <bitset>
 
-// hash 1
-int h1(string s, int arrSize)
-{
-	ll int hash = 0;
-	for (int i = 0; i < s.size(); i++)
-	{
-		hash = (hash + ((int)s[i]));
-		hash = hash % arrSize;
-	}
-	return hash;
+#define MAX_WORD_LENGTH 100
+#define BLOOM_FILTER_SIZE 1000000
+
+std::bitset<BLOOM_FILTER_SIZE> bloom_filter;
+
+unsigned int hash1(const char *str) {
+    unsigned int hash = 5381;
+    int c;
+    while ((c = *str++)) {
+        hash = ((hash << 5) + hash) + c;
+    }
+    return hash % BLOOM_FILTER_SIZE;
 }
 
-// hash 2
-int h2(string s, int arrSize)
-{
-	ll int hash = 1;
-	for (int i = 0; i < s.size(); i++)
-	{
-		hash = hash + pow(19, i) * s[i];
-		hash = hash % arrSize;
-	}
-	return hash % arrSize;
+unsigned int hash2(const char *str) {
+    unsigned int hash = 0;
+    int c;
+    while ((c = *str++)) {
+        hash = c + (hash << 6) + (hash << 16) - hash;
+    }
+    return hash % BLOOM_FILTER_SIZE;
 }
 
-// hash 3
-int h3(string s, int arrSize)
-{
-	ll int hash = 7;
-	for (int i = 0; i < s.size(); i++)
-	{
-		hash = (hash * 31 + s[i]) % arrSize;
-	}
-	return hash % arrSize;
+unsigned int hash3(const char *str) {
+    unsigned int hash = 0;
+    int c;
+    while ((c = *str++)) {
+        hash = c + (hash << 7) + (hash << 15) - hash;
+    }
+    return hash % BLOOM_FILTER_SIZE;
 }
 
-// hash 4
-int h4(string s, int arrSize)
+int ReadFromFileToArray(const char *filename, int fileLength, char ***pppArray)
 {
-	ll int hash = 3;
-	int p = 7;
-	for (int i = 0; i < s.size(); i++) {
-		hash += hash * 7 + s[0] * pow(p, i);
-		hash = hash % arrSize;
-	}
-	return hash;
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Failed to open file");
+        exit(1);
+    }
+    char word[MAX_WORD_LENGTH];
+    char **FileWordList = NULL;
+    char **UniqueWordList = NULL;
+    int UniqueWordListLength = 0;
+
+    FileWordList = (char**)malloc(fileLength * sizeof(char *));
+    for(int i = 0; i < fileLength; i++) {
+        fscanf(file, "%s", word);
+        FileWordList[i] = strdup(word);
+    }
+
+
+
+    UniqueWordList = (char**)realloc(UniqueWordList, UniqueWordListLength * sizeof(char *));
+    if (UniqueWordList == NULL) {
+        perror("Failed to allocate memory");
+        exit(1);
+    }
+    *pppArray = UniqueWordList;
+
+    for(int i = 0; i < fileLength; i++) {
+        for (int j = 0; FileWordList[i][j]; j++) {
+            FileWordList[i][j] = tolower(FileWordList[i][j]);
+        }
+        if (bloom_filter[hash1(FileWordList[i])] && 
+            bloom_filter[hash2(FileWordList[i])] && 
+            bloom_filter[hash3(FileWordList[i])]) {
+            continue;
+        }
+        bloom_filter[hash1(FileWordList[i])] = 1;
+        bloom_filter[hash2(FileWordList[i])] = 1;
+        bloom_filter[hash3(FileWordList[i])] = 1;
+
+        UniqueWordList[UniqueWordListLength] = strdup(FileWordList[i]);
+        UniqueWordListLength++;
+    }
+
+    UniqueWordList = realloc(UniqueWordList, UniqueWordListLength * sizeof(char *));
+    *pppArray = UniqueWordList;
+
+    for (int i = 0; i < fileLength; i++) {
+        free(FileWordList[i]);
+    }
+    free(FileWordList);
+    
+    return UniqueWordListLength;
 }
 
+int main() {
+    struct timespec start, end, startComp, endComp; 
+    const char* filenames[3] = {"MOBY_DICK.txt", "LITTLE_WOMEN.txt", "SHAKESPEARE.txt"}; // Notice the const here
+    int fileLengths[3] = {215724, 195467, 965465};
 
-// lookup operation
-bool lookup(bool* bitarray, int arrSize, string s)
-{
-	int a = h1(s, arrSize);
-	int b = h2(s, arrSize);
-	int c = h3(s, arrSize);
-	int d = h4(s, arrSize);
+    char **ppWordListArray[3] = {0};
+    int wordListLengthArray[3] = {0};
+    int i;
 
-	if (bitarray[a] && bitarray[b] && bitarray
-		&& bitarray[d])
-		return true;
-	else
-		return false;
-}
+    struct timespec start, end;
+    double time_taken; 
+    int n = 0;
 
-// insert operation
-void insert(bool* bitarray, int arrSize, string s)
-{
-	// check if the element in already present or not
-	if (lookup(bitarray, arrSize, s))
-		cout << s << " is Probably already present" << endl;
-	else
-	{
-		int a = h1(s, arrSize);
-		int b = h2(s, arrSize);
-		int c = h3(s, arrSize);
-		int d = h4(s, arrSize);
+    clock_gettime(CLOCK_MONOTONIC, &start); 
 
-		bitarray[a] = true;
-		bitarray[b] = true;
-		bitarray = true;
-		bitarray[d] = true;
+    for (i = 0; i < 3; i++) {
+        wordListLengthArray[i] = ReadFromFileToArray(filenames[i], fileLengths[i], &ppWordListArray[i]);
+        if (wordListLengthArray[i] == 0) {
+            printf("Failed to read file: %s\n", filenames[i]);
+            exit(1);
+        }
+        n += wordListLengthArray[i];
+    }
 
-		cout << s << " inserted" << endl;
-	}
-}
 
-// Driver Code
-int main()
-{
-	bool bitarray[100] = { false };
-	int arrSize = 100;
-	string sarray[33]
-		= { "abound", "abounds",	 "abundance",
-			"abundant", "accessible", "bloom",
-			"blossom", "bolster",	 "bonny",
-			"bonus", "bonuses",	 "coherent",
-			"cohesive", "colorful",	 "comely",
-			"comfort", "gems",		 "generosity",
-			"generous", "generously", "genial",
-			"bluff", "cheater",	 "hate",
-			"war",	 "humanity",	 "racism",
-			"hurt",	 "nuke",		 "gloomy",
-			"facebook", "geeksforgeeks", "twitter" };
-	for (int i = 0; i < 33; i++) {
-		insert(bitarray, arrSize, sarray[i]);
-	}
-	return 0;
+    for (int delay1 = 0; delay1 < 10000; ++delay1) {
+        for (int delay2 = 0; delay2 < 10000; ++delay2) {
+            volatile int dont_optimize_me = delay1 * delay2;
+        }
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &end); 
+    time_taken = (end.tv_sec - start.tv_sec) * 1e9; 
+    time_taken = (time_taken + (end.tv_nsec - start.tv_nsec)) * 1e-9; 
+    printf("Total unique words from read files: %d. Process time(s): %lf\n", n, time_taken);
+
+    for (i=0; i<3; i++){
+        for (int j = 0; j < wordListLengthArray[i]; j++) {
+            free(ppWordListArray[i][j]);
+        free(ppWordListArray[i]);    
+    }
+
+    return 0;
 }

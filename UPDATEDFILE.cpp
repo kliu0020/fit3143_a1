@@ -87,6 +87,12 @@ int main() {
 	int wordListLengthArray[3] = {0};
 	int i;
 	char writeFile[32] = {0};
+
+    for (int delay1 = 0; delay1 < 10000; ++delay1) {
+        for (int delay2 = 0; delay2 < 10000; ++delay2) {
+            volatile int dont_optimize_me = delay1 * delay2;
+        }
+    }
 	
 	struct timespec start, end;
 	double time_taken; 
