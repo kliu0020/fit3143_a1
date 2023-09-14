@@ -1,139 +1,100 @@
-#include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <time.h>
+#include <iostream>
+#include <fstream>
+#include <string>
 #include <bitset>
+#include <chrono>
+#include <cctype>
 
-#define MAX_WORD_LENGTH 100
 #define BLOOM_FILTER_SIZE 1000000
 
 std::bitset<BLOOM_FILTER_SIZE> bloom_filter;
 
-unsigned int hash1(const char *str) {
+unsigned int hash1(const std::string& str) {
     unsigned int hash = 5381;
-    int c;
-    while ((c = *str++)) {
+    for (char c : str) {
         hash = ((hash << 5) + hash) + c;
     }
     return hash % BLOOM_FILTER_SIZE;
 }
 
-unsigned int hash2(const char *str) {
+unsigned int hash2(const std::string& str) {
     unsigned int hash = 0;
-    int c;
-    while ((c = *str++)) {
+    for (char c : str) {
         hash = c + (hash << 6) + (hash << 16) - hash;
     }
     return hash % BLOOM_FILTER_SIZE;
 }
 
-unsigned int hash3(const char *str) {
+unsigned int hash3(const std::string& str) {
     unsigned int hash = 0;
-    int c;
-    while ((c = *str++)) {
+    for (char c : str) {
         hash = c + (hash << 7) + (hash << 15) - hash;
     }
     return hash % BLOOM_FILTER_SIZE;
 }
 
-int ReadFromFileToArray(const char *filename, int fileLength, char ***pppArray)
-{
-    FILE *file = fopen(filename, "r");
-    if (file == NULL) {
-        perror("Failed to open file");
+int ReadFromFileAndInsert(const std::string& filename) {
+    int uniqueWordsCount = 0;
+    std::ifstream file(filename);
+    std::string word;
+
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file" << std::endl;
         exit(1);
     }
-    char word[MAX_WORD_LENGTH];
-    char **FileWordList = NULL;
-    char **UniqueWordList = NULL;
-    int UniqueWordListLength = 0;
 
-    FileWordList = (char**)malloc(fileLength * sizeof(char *));
-    for(int i = 0; i < fileLength; i++) {
-        fscanf(file, "%s", word);
-        FileWordList[i] = strdup(word);
-    }
-
-
-
-    UniqueWordList = (char**)realloc(UniqueWordList, UniqueWordListLength * sizeof(char *));
-    if (UniqueWordList == NULL) {
-        perror("Failed to allocate memory");
-        exit(1);
-    }
-    *pppArray = UniqueWordList;
-
-    for(int i = 0; i < fileLength; i++) {
-        for (int j = 0; FileWordList[i][j]; j++) {
-            FileWordList[i][j] = tolower(FileWordList[i][j]);
+    while (file >> word) {
+        for (char& c : word) {
+            c = std::tolower(c);
         }
-        if (bloom_filter[hash1(FileWordList[i])] && 
-            bloom_filter[hash2(FileWordList[i])] && 
-            bloom_filter[hash3(FileWordList[i])]) {
+        
+        if (bloom_filter[hash1(word)] &&
+            bloom_filter[hash2(word)] &&
+            bloom_filter[hash3(word)]) {
             continue;
         }
-        bloom_filter[hash1(FileWordList[i])] = 1;
-        bloom_filter[hash2(FileWordList[i])] = 1;
-        bloom_filter[hash3(FileWordList[i])] = 1;
 
-        UniqueWordList[UniqueWordListLength] = strdup(FileWordList[i]);
-        UniqueWordListLength++;
+        bloom_filter[hash1(word)] = 1;
+        bloom_filter[hash2(word)] = 1;
+        bloom_filter[hash3(word)] = 1;
+        
+        uniqueWordsCount++;
     }
 
-    UniqueWordList = realloc(UniqueWordList, UniqueWordListLength * sizeof(char *));
-    *pppArray = UniqueWordList;
-
-    for (int i = 0; i < fileLength; i++) {
-        free(FileWordList[i]);
-    }
-    free(FileWordList);
-    
-    return UniqueWordListLength;
+    return uniqueWordsCount;
 }
 
 int main() {
-    struct timespec start, end, startComp, endComp; 
-    const char* filenames[3] = {"MOBY_DICK.txt", "LITTLE_WOMEN.txt", "SHAKESPEARE.txt"}; // Notice the const here
-    int fileLengths[3] = {215724, 195467, 965465};
+    const std::string filenames[] = {"MOBY_DICK.txt", "LITTLE_WOMEN.txt", "SHAKESPEARE.txt"};
+    int uniqueWordsCount = 0;
+    std::chrono::high_resolution_clock::time_point t1, t2;
 
-    char **ppWordListArray[3] = {0};
-    int wordListLengthArray[3] = {0};
-    int i;
+    // Measure total time
+    t1 = std::chrono::high_resolution_clock::now();
 
-    struct timespec start, end;
-    double time_taken; 
-    int n = 0;
+    for (const auto& filename : filenames) {
+        // Measure time taken to read each file
+        auto readStart = std::chrono::high_resolution_clock::now();
+        int count = ReadFromFileAndInsert(filename);
+        auto readEnd = std::chrono::high_resolution_clock::now();
 
-    clock_gettime(CLOCK_MONOTONIC, &start); 
+        auto readDuration = std::chrono::duration_cast<std::chrono::microseconds>(readEnd - readStart).count();
+        std::cout << "Time taken to read " << filename << ": " << readDuration << " microseconds, or approximately " << readDuration / 1000.0 << " milliseconds.\n";
 
-    for (i = 0; i < 3; i++) {
-        wordListLengthArray[i] = ReadFromFileToArray(filenames[i], fileLengths[i], &ppWordListArray[i]);
-        if (wordListLengthArray[i] == 0) {
-            printf("Failed to read file: %s\n", filenames[i]);
-            exit(1);
-        }
-        n += wordListLengthArray[i];
+        uniqueWordsCount += count;
     }
 
+    // Measure time taken for insertion
+    auto insertEnd = std::chrono::high_resolution_clock::now();
+    auto insertDuration = std::chrono::duration_cast<std::chrono::microseconds>(insertEnd - t1).count();
+    std::cout << "Time taken for insertion: " << insertDuration << " microseconds, or approximately " << insertDuration / 1000.0 << " milliseconds.\n";
 
-    for (int delay1 = 0; delay1 < 10000; ++delay1) {
-        for (int delay2 = 0; delay2 < 10000; ++delay2) {
-            volatile int dont_optimize_me = delay1 * delay2;
-        }
-    }
+    // Measure total time
+    t2 = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+    std::cout << "Total time taken: " << duration << " microseconds, or approximately " << duration / 1000.0 << " milliseconds.\n";
 
-    clock_gettime(CLOCK_MONOTONIC, &end); 
-    time_taken = (end.tv_sec - start.tv_sec) * 1e9; 
-    time_taken = (time_taken + (end.tv_nsec - start.tv_nsec)) * 1e-9; 
-    printf("Total unique words from read files: %d. Process time(s): %lf\n", n, time_taken);
-
-    for (i=0; i<3; i++){
-        for (int j = 0; j < wordListLengthArray[i]; j++) {
-            free(ppWordListArray[i][j]);
-        free(ppWordListArray[i]);    
-    }
+    std::cout << "Total unique words from read files: " << uniqueWordsCount << std::endl;
 
     return 0;
 }
