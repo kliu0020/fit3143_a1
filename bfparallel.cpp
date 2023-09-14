@@ -100,13 +100,6 @@ int ReadFromFileAndInsert(const std::string& filename, std::bitset<BLOOM_FILTER_
 
     return uniqueWordsCount;
 }
-/**
- * The above function reads multiple files, inserts unique words into bloom filters, and calculates the
- * total number of unique words.
- * 
- * @return The main function is returning an integer value of 0.
- */
-
 int main() {
     const std::string filenames[] = {"MOBY_DICK.txt", "LITTLE_WOMEN.txt", "SHAKESPEARE.txt"};
     std::bitset<BLOOM_FILTER_SIZE> bloom_filters[FILE_COUNT];
