@@ -4,10 +4,13 @@
 #include <bitset>
 #include <chrono>
 #include <cctype>
+#include <omp.h>
 
 #define BLOOM_FILTER_SIZE 1000000
+#define FILE_COUNT 3
 
-std::bitset<BLOOM_FILTER_SIZE> bloom_filter;
+std::bitset<BLOOM_FILTER_SIZE> bloom_filter;  // Single Bloom filter for all files
+omp_lock_t lock;
 
 /**
  * The function `hash1` calculates a hash value for a given string using the djb2 algorithm.
@@ -56,15 +59,18 @@ unsigned int hash3(const std::string& str) {
 }
 /**
  * The function reads words from a file, converts them to lowercase, checks if they are already in a
- * bloom filter, and inserts them if they are not.
+ * Bloom filter, and inserts them if they are not.
  * 
- * @param filename The `filename` parameter is a `std::string` that represents the name of the file
- * from which we want to read words.
+ * @param filename The filename parameter is a string that represents the name of the file from which
+ * we want to read words.
+ * @param filter The `filter` parameter is a reference to a `std::bitset` object with a size of
+ * `BLOOM_FILTER_SIZE`. The `std::bitset` is used as a Bloom filter to check for the presence of words
+ * in a file.
  * 
- * @return the count of unique words read from the file.
+ * @return the number of unique words that were read from the file and inserted into the bloom filter.
  */
 
-int ReadFromFileAndInsert(const std::string& filename) {
+int ReadFromFileAndInsert(const std::string& filename, std::bitset<BLOOM_FILTER_SIZE>& filter) {
     int uniqueWordsCount = 0;
     std::ifstream file(filename);
     std::string word;
@@ -78,60 +84,57 @@ int ReadFromFileAndInsert(const std::string& filename) {
         for (char& c : word) {
             c = std::tolower(c);
         }
-        
-        if (bloom_filter[hash1(word)] &&
-            bloom_filter[hash2(word)] &&
-            bloom_filter[hash3(word)]) {
+
+        if (filter[hash1(word)] &&
+            filter[hash2(word)] &&
+            filter[hash3(word)]) {
             continue;
         }
 
-        bloom_filter[hash1(word)] = 1;
-        bloom_filter[hash2(word)] = 1;
-        bloom_filter[hash3(word)] = 1;
-        
+        filter[hash1(word)] = 1;
+        filter[hash2(word)] = 1;
+        filter[hash3(word)] = 1;
+
         uniqueWordsCount++;
     }
 
     return uniqueWordsCount;
 }
 /**
- * The main function measures the time taken to read and insert data from multiple files, and outputs
- * the total time taken and the total number of unique words.
+ * The above function reads multiple files, inserts unique words into bloom filters, and calculates the
+ * total number of unique words.
  * 
  * @return The main function is returning an integer value of 0.
  */
 
 int main() {
     const std::string filenames[] = {"MOBY_DICK.txt", "LITTLE_WOMEN.txt", "SHAKESPEARE.txt"};
-    int uniqueWordsCount = 0;
-    std::chrono::high_resolution_clock::time_point t1, t2;
+    std::bitset<BLOOM_FILTER_SIZE> bloom_filters[FILE_COUNT];
+    int uniqueWordsCount[FILE_COUNT] = {0};
 
-    // Measure total time
-    t1 = std::chrono::high_resolution_clock::now();
+    int totalUniqueWords = 0;  // Declare the variable here
 
-    for (const auto& filename : filenames) {
-        // Measure time taken to read each file
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    #pragma omp parallel for reduction(+:totalUniqueWords)
+    for (int i = 0; i < FILE_COUNT; ++i) {
         auto readStart = std::chrono::high_resolution_clock::now();
-        int count = ReadFromFileAndInsert(filename);
+        uniqueWordsCount[i] = ReadFromFileAndInsert(filenames[i], bloom_filters[i]);
+        totalUniqueWords += uniqueWordsCount[i];  // This is where the reduction will take place
         auto readEnd = std::chrono::high_resolution_clock::now();
 
         auto readDuration = std::chrono::duration_cast<std::chrono::microseconds>(readEnd - readStart).count();
-        std::cout << "Time taken to read " << filename << ": " << readDuration << " microseconds, or approximately " << readDuration / 1000.0 << " milliseconds.\n";
-
-        uniqueWordsCount += count;
+        #pragma omp critical
+        {
+            std::cout << "Time taken to read " << filenames[i] << ": " << readDuration << " microseconds, or approximately " << readDuration / 1000.0 << " milliseconds.\n";
+        }
     }
 
-    // Measure time taken for insertion
-    auto insertEnd = std::chrono::high_resolution_clock::now();
-    auto insertDuration = std::chrono::duration_cast<std::chrono::microseconds>(insertEnd - t1).count();
-    std::cout << "Time taken for insertion: " << insertDuration << " microseconds, or approximately " << insertDuration / 1000.0 << " milliseconds.\n";
-
-    // Measure total time
-    t2 = std::chrono::high_resolution_clock::now();
+    auto t2 = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-    std::cout << "Total time taken: " << duration << " microseconds, or approximately " << duration / 1000.0 << " milliseconds.\n";
 
-    std::cout << "Total unique words from read files: " << uniqueWordsCount << std::endl;
+    std::cout << "Total time taken: " << duration << " microseconds, or approximately " << duration / 1000.0 << " milliseconds.\n";
+    std::cout << "Total unique words from read files: " << totalUniqueWords << std::endl;
 
     return 0;
 }
