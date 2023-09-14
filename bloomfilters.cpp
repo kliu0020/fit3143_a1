@@ -64,7 +64,7 @@ unsigned int hash3(const std::string& str) {
  * @return the count of unique words read from the file.
  */
 
-int ReadFromFileAndInsert(const std::string& filename) {
+int ReadAndInsert(const std::string& filename) {
     int uniqueWordsCount = 0;
     std::ifstream file(filename);
     std::string word;
@@ -112,7 +112,7 @@ int main() {
     for (const auto& filename : filenames) {
         // Measure time taken to read each file
         auto readStart = std::chrono::high_resolution_clock::now();
-        int count = ReadFromFileAndInsert(filename);
+        int count = ReadAndInsert(filename);
         auto readEnd = std::chrono::high_resolution_clock::now();
 
         auto readDuration = std::chrono::duration_cast<std::chrono::microseconds>(readEnd - readStart).count();

@@ -70,7 +70,7 @@ unsigned int hash3(const std::string& str) {
  * @return the number of unique words that were read from the file and inserted into the bloom filter.
  */
 
-int ReadFromFileAndInsert(const std::string& filename, std::bitset<BLOOM_FILTER_SIZE>& filter) {
+int ReadAndInsert(const std::string& filename, std::bitset<BLOOM_FILTER_SIZE>& filter) {
     int uniqueWordsCount = 0;
     std::ifstream file(filename);
     std::string word;
@@ -112,7 +112,7 @@ int main() {
     #pragma omp parallel for reduction(+:totalUniqueWords)
     for (int i = 0; i < FILE_COUNT; ++i) {
         auto readStart = std::chrono::high_resolution_clock::now();
-        uniqueWordsCount[i] = ReadFromFileAndInsert(filenames[i], bloom_filters[i]);
+        uniqueWordsCount[i] = ReadAndInsert(filenames[i], bloom_filters[i]);
         totalUniqueWords += uniqueWordsCount[i];  // This is where the reduction will take place
         auto readEnd = std::chrono::high_resolution_clock::now();
 

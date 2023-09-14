@@ -77,6 +77,8 @@ int ReadFromFileAndInsert(const std::string& filename) {
         exit(1);
     }
 
+/* loop that reads words from a file, converts them to lowercase,
+checks if they are already in a Bloom filter, and inserts them if they are not. */
     while (file >> word) {
         for (char& c : word) {
             c = std::tolower(c);
@@ -115,6 +117,7 @@ void QueryBloomFilter(const std::string& query_filename) {
         exit(1);
     }
 
+/* reads words from a query file and checking if they exist in a Bloom filter. */
     while (query_file >> query_word >> dummy) { // Read word and a dummy integer
         for (char& c : query_word) {
             c = std::tolower(c);
@@ -149,6 +152,9 @@ int main() {
     // Measure total time
     t1 = std::chrono::high_resolution_clock::now();
 
+    /* loop that iterates over each filename in the `filenames` array. For
+    each filename, it measures the time taken to read the file and insert its contents into the Bloom
+    filter. */
     for (const auto& filename : filenames) {
         // Measure time taken to read each file
         auto readStart = std::chrono::high_resolution_clock::now();
